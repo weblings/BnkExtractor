@@ -482,6 +482,11 @@ public class Wwise_RIFF_Vorbis
         int mode_bits = 0;
         bool prev_blockflag = false;
 
+        // Recomputed granule positions (RevorbSharp's formula: granpos += (lastbs + bs) / 4),
+        // overriding the raw per-wem-packet granule set below once a packet's mode is known.
+        long accumulatedGranulePos = 0;
+        long lastBlockSize = 0;
+
         if (_header_triad_present)
         {
             generate_ogg_header_with_triad(os);
@@ -570,6 +575,19 @@ public class Wwise_RIFF_Vorbis
                         // IN: remaining bits of first (input) byte
                         remainder_p = new Bit_uintv((uint)(8 - mode_bits));
                         Bit_uintv.ReadBits(ss, remainder_p);
+                    }
+
+                    {
+                        long bs = mode_blockflag[mode_number_p] ? (1L << _blocksize_1_pow) : (1L << _blocksize_0_pow);
+
+                        if (lastBlockSize != 0)
+                        {
+                            accumulatedGranulePos += (lastBlockSize + bs) / 4;
+                        }
+
+                        lastBlockSize = bs;
+
+                        os.set_granule((uint)accumulatedGranulePos);
                     }
 
                     if (mode_blockflag[mode_number_p])
